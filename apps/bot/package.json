@@ -1,0 +1,21 @@
+{
+  "name": "@k0ii/bot",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --env-file=../../.env --watch src/index.ts",
+    "start": "bun --env-file=../../.env src/index.ts",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@k0ii/schemas": "workspace:*",
+    "@napi-rs/canvas": "^1.0.6",
+    "discord.js": "^14.22.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "typescript": "^5.9.3"
+  }
+}

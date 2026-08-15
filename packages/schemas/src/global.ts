@@ -11,7 +11,10 @@ export const GlobalPlayerSchema = z.object({
 
 export const GlobalLeaderboardResponseSchema = z.object({
   generatedAt: z.number(),
+  /** Rows matching current filters (pagination). */
   total: z.number(),
+  /** Full index size — use for “better than X%” even when `q`/`clan` filters shrink `total`. */
+  universeTotal: z.number().optional(),
   limit: z.number(),
   offset: z.number(),
   players: z.array(GlobalPlayerSchema),

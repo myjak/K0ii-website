@@ -511,6 +511,96 @@
   }
 }
 
+/* Text glow helpers. Kept as utilities so headings share one treatment instead
+   of each growing its own drop-shadow stack. The glow is neutral light, not a
+   colour wash — tinting it orange in dark mode made white headings read as if
+   they were printed in orange. */
+.pond-glow {
+  text-shadow:
+    0 1px 2px color-mix(in srgb, var(--pond-bg-to) 45%, transparent),
+    0 2px 10px color-mix(in srgb, var(--pond-bg-to) 30%, transparent);
+}
+
+.dark .pond-glow {
+  text-shadow:
+    0 0 24px rgb(255 255 255 / 18%),
+    0 0 56px rgb(255 255 255 / 8%),
+    0 2px 5px rgb(0 0 0 / 55%);
+}
+
+.pond-glow-teal {
+  text-shadow:
+    0 1px 2px color-mix(in srgb, var(--pond-bg-to) 40%, transparent),
+    0 2px 10px color-mix(in srgb, var(--pond-teal) 22%, transparent);
+}
+
+.dark .pond-glow-teal {
+  text-shadow:
+    0 0 22px rgb(255 255 255 / 14%),
+    0 0 48px color-mix(in srgb, var(--pond-teal) 20%, transparent),
+    0 2px 5px rgb(0 0 0 / 50%);
+}
+
+/* Join page effects — ported from maplewick/k0ii-website (bot-served join).
+   Gradient figures, lift cards, breathing CTA. Global prefers-reduced-motion
+   below stops the animated parts. */
+.stat-grad-gold {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.stat-grad-indigo {
+  background: linear-gradient(135deg, #60a5fa, #a78bfa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.stat-grad-lily {
+  background: linear-gradient(135deg, var(--lily-green), var(--pond-teal));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.join-lift {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .join-lift:hover {
+    transform: translateY(-4px);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--koi-orange) 38%, transparent),
+      0 12px 40px color-mix(in srgb, var(--koi-orange) 20%, transparent);
+  }
+}
+
+.cta-pulse {
+  animation: cta-glow-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes cta-glow-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 4px 20px color-mix(in srgb, var(--koi-orange) 32%, transparent),
+      0 0 20px color-mix(in srgb, var(--koi-orange) 20%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 4px 26px color-mix(in srgb, var(--koi-orange) 45%, transparent),
+      0 0 38px color-mix(in srgb, var(--koi-orange) 32%, transparent);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

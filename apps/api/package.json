@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun --env-file=../../.env --watch src/index.ts",
-    "start": "bun src/index.ts",
-    "poll": "bun src/jobs/scheduler.ts",
+    "start": "bun --env-file=../../.env src/index.ts",
+    "poll": "bun --env-file=../../.env src/jobs/scheduler.ts",
     "db:generate": "bun scripts/prisma-with-root-env.ts generate",
     "db:migrate": "bun scripts/prisma-with-root-env.ts migrate dev",
     "db:push": "bun scripts/prisma-with-root-env.ts db push",

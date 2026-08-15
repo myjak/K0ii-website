@@ -121,3 +121,54 @@ model GlobalPlayerIndexSnapshot {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+/** Pinned / pre-registered PS99 league names (website tracker + poll detail). */
+model TrackedLeague {
+  id        String   @id @default(cuid())
+  leagueId  String   @unique
+  name      String
+  addedBy   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
+
+model LeagueSnapshot {
+  id               String   @id @default(cuid())
+  leagueId         String
+  name             String
+  capturedAt       DateTime
+  points           BigInt
+  rank             Int?
+  memberCount      Int?
+  contributorCount Int?
+  /** Optional Map of robloxUserId → points from detail fetch. */
+  memberPointsJson Json?
+
+  @@index([leagueId, capturedAt(sort: Desc)])
+  @@index([capturedAt(sort: Desc)])
+}
+
+/** Singleton league config: add lock + Discord channel + summary embed. */
+model LeagueSettings {
+  id                   String   @id @default("current")
+  additionsOpen        Boolean  @default(true)
+  channelId            String?
+  summaryMessageId     String?
+  updatedAt            DateTime @updatedAt
+}
+
+/** In-server Discord social leagues (1 owner + ≤3 members). */
+model DiscordLeague {
+  id        String   @id
+  name      String
+  ownerId   String
+  /** Discord snowflakes excluding owner. Max 3. */
+  memberIds Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name])
+  @@index([ownerId])
+}

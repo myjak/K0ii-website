@@ -35,6 +35,12 @@ const envSchema = z.object({
   GLOBAL_INDEX_REFRESH_MS: z.coerce.number().default(1_800_000),
   /** Concurrent /api/clan fetches during global index build. */
   GLOBAL_INDEX_FETCH_CONCURRENCY: z.coerce.number().default(6),
+  /** Optional default league channel; bot also stores override via API. */
+  LEAGUE_CHANNEL_ID: z.string().min(1).optional(),
+  /** League poll cadence. Defaults to live war poll interval. */
+  LEAGUE_POLL_INTERVAL_MS: z.coerce.number().optional(),
+  /** Shared secret for bot write routes (X-Bot-Secret). */
+  BOT_API_SECRET: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema> & {

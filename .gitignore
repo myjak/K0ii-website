@@ -6,6 +6,7 @@ node_modules
 *.log
 dist
 .next
+.commandkit
 graphify-out
 data/poll-stamp.json
 data/global-player-index.json

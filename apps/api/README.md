@@ -36,7 +36,13 @@ Scripts load `../../.env` automatically. Do not put secrets under `apps/api/`.
 | GET | `/api/battle-archive` | Past battles |
 | GET | `/api/battles/:id` | Single battle detail |
 | GET | `/api/battle-rewards` | Placement rewards |
-| GET | `/api/leagues` | League board (file/cache) |
+| GET | `/api/leagues` | League board (Prisma + PS99 `/v1/leagues` polls) |
+| GET | `/api/leagues/tracked` | Tracked leagues only |
+| POST | `/api/leagues/tracked` | Add tracked league (`X-Bot-Secret`; pending OK if not on PS99 yet) |
+| DELETE | `/api/leagues/tracked/:name` | Remove one tracked league (`X-Bot-Secret`) |
+| DELETE | `/api/leagues/tracked` | Clear all tracked leagues (`X-Bot-Secret`) |
+| GET | `/api/leagues/settings` | Additions lock status |
+| POST | `/api/leagues/settings/additions` | Toggle/set additions lock (`X-Bot-Secret`) |
 | GET | `/api/global-leaderboard` | Cross-clan players (`q`, `clan`, `limit`, `offset`) |
 | GET | `/api/registry` | Staff registry |
 
@@ -55,7 +61,8 @@ Responses for hot routes are cached in-memory (`ROSTER_CACHE_MS`, default = live
 **Live:** batched `ClanBattleSnapshot` + changed `PlayerPointSnapshot` rows.  
 **Idle:** battle/clan upsert + archive — no snap spam.  
 **Rewards:** `PlacementRewards` written once onto `Battle.rewardsJson`.  
-**Global index:** while live, every `GLOBAL_INDEX_REFRESH_MS`, fan-out top N clans → upsert `GlobalPlayerIndexSnapshot` (`id=current`). Does not write per-player snaps.
+**Global index:** while live, every `GLOBAL_INDEX_REFRESH_MS`, fan-out top N clans → upsert `GlobalPlayerIndexSnapshot` (`id=current`). Does not write per-player snaps.  
+**Leagues:** every `LEAGUE_POLL_INTERVAL_MS` (default = live poll), top 100 + tracked leagues → `LeagueSnapshot`. Tracked set edited by Discord bot via authenticated write routes.
 
 Each tick logs `ops≈N` and `estimatedMonthlyOps≈N` (Accelerate budget helper).
 
@@ -86,7 +93,7 @@ bun run db:migrate    # migration workflow
 
 Uses `DATABASE_URL` (Accelerate in prod) and `DIRECT_DATABASE_URL` (migrations / direct Postgres).
 
-Core models: `Clan`, `Player`, `ClanMembership`, `Battle`, `ClanBattleSnapshot`, `PlayerPointSnapshot`, `BattleArchive`, `GlobalPlayerIndexSnapshot`.
+Core models: `Clan`, `Player`, `ClanMembership`, `Battle`, `ClanBattleSnapshot`, `PlayerPointSnapshot`, `BattleArchive`, `GlobalPlayerIndexSnapshot`, `TrackedLeague`, `LeagueSnapshot`.
 
 One-off history import (legacy JSON → Prisma):
 
@@ -108,6 +115,8 @@ src/
 └── services/
     ├── ps99-client.ts
     ├── poll-ps99.ts
+    ├── poll-leagues.ts
+    ├── tracked-leagues.ts
     ├── refresh-global-index.ts
     ├── prune-snapshots.ts
     ├── build-roster.ts
@@ -128,6 +137,8 @@ src/
 | --- | --- | --- | --- |
 | `DATABASE_URL` | yes | — | Prisma connection |
 | `DIRECT_DATABASE_URL` | yes\* | — | Direct URL for migrations |
+| `BOT_API_SECRET` | for writes | — | Shared secret for `X-Bot-Secret` on league mutate routes |
+| `LEAGUE_POLL_INTERVAL_MS` | no | `POLL_INTERVAL_MS` | League ladder poll cadence |
 | `CLAN_NAME` | no | `K0i2` | Clan to track |
 | `API_PORT` | no | `3002` | Local listen port |
 | `PORT` | no | — | Host-injected; preferred over `API_PORT` |

@@ -21,6 +21,7 @@ export async function buildGlobalLeaderboardResponse(
     return {
       generatedAt: now,
       total: 0,
+      universeTotal: 0,
       limit,
       offset,
       players: [],
@@ -68,8 +69,9 @@ export async function buildGlobalLeaderboardResponse(
     for (const [id, name] of Object.entries(names)) nameCache.set(id, name);
   }
 
-  const players = pageRows.map((r, i) => ({
-    rank: offset + i + 1,
+  const players = pageRows.map((r) => ({
+    /** True global rank from index — not page position. */
+    rank: r.rank,
     displayName: nameCache.get(r.robloxUserId) ?? `User ${r.robloxUserId}`,
     robloxUserId: r.robloxUserId,
     clanName: r.clanName,
@@ -80,6 +82,7 @@ export async function buildGlobalLeaderboardResponse(
   return {
     generatedAt: index.updatedAt || now,
     total,
+    universeTotal: index.totalPlayers,
     limit,
     offset,
     players,

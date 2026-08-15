@@ -1,8 +1,16 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import {
+  AddTrackedLeagueBodySchema,
+  CreateDiscordLeagueBodySchema,
+  DiscordMemberBodySchema,
+  SetLeagueAdditionsBodySchema,
+  SetLeagueChannelBodySchema,
+} from "@k0ii/schemas";
 import type { Env } from "./env";
 import { loadEnv } from "./env";
-import { cachedJson } from "./lib/response-cache";
+import { requireBotSecret } from "./lib/bot-auth";
+import { cachedJson, invalidateResponseCache } from "./lib/response-cache";
 import {
   buildBattleArchiveResponse,
   buildBattleDetail,
@@ -10,15 +18,37 @@ import {
 import { buildGlobalLeaderboardResponse } from "./services/build-global";
 import { buildGraphsResponse } from "./services/build-graphs";
 import { buildLeaderboardsResponse } from "./services/build-leaderboards";
-import { buildLeaguesResponse } from "./services/build-leagues";
+import {
+  buildLeagueDetail,
+  buildLeaguesResponse,
+  listTrackedLeagues,
+} from "./services/build-leagues";
 import { buildBattleRewardsResponse } from "./services/build-rewards";
 import { buildRegistryResponse } from "./services/build-registry";
 import { buildRosterResponse } from "./services/build-roster";
+import {
+  addDiscordMember,
+  clearAllDiscordLeagues,
+  createDiscordLeague,
+  disbandDiscordLeague,
+  listDiscordLeagues,
+  removeDiscordMember,
+  setLeagueChannel,
+  setSummaryMessageId,
+} from "./services/discord-leagues";
+import {
+  addTrackedLeague,
+  clearTrackedLeagues,
+  getLeagueSettings,
+  removeTrackedLeague,
+  setAdditionsOpen,
+} from "./services/tracked-leagues";
 
 export function createApp(env: Env) {
   const app = new Hono();
   const cacheMs = env.ROSTER_CACHE_MS;
   const allowed = new Set(env.corsOrigins.map((o) => o.replace(/\/$/, "")));
+  const botAuth = requireBotSecret(env);
 
   app.use(
     "*",
@@ -29,7 +59,7 @@ export function createApp(env: Env) {
         const normalized = origin.replace(/\/$/, "");
         return allowed.has(normalized) ? origin : null;
       },
-      allowMethods: ["GET", "OPTIONS"],
+      allowMethods: ["GET", "POST", "DELETE", "PATCH", "OPTIONS"],
     }),
   );
 
@@ -61,7 +91,6 @@ export function createApp(env: Env) {
 
   app.get("/api/battle-rewards", async (c) => {
     try {
-      // Short TTL so placement sync from PS99 shows up quickly.
       return c.json(
         await cachedJson("battle-rewards", Math.min(cacheMs, 60_000), () =>
           buildBattleRewardsResponse(),
@@ -124,10 +153,210 @@ export function createApp(env: Env) {
 
   app.get("/api/leagues", async (c) => {
     try {
-      return c.json(await buildLeaguesResponse(env));
+      return c.json(
+        await cachedJson("leagues", cacheMs, () => buildLeaguesResponse()),
+      );
     } catch (error) {
       console.error("[leagues]", error);
       return c.json({ error: "Failed to build leagues" }, 500);
+    }
+  });
+
+  app.get("/api/leagues/detail", async (c) => {
+    const name = c.req.query("name")?.trim() ?? "";
+    if (!name) return c.json({ error: "name query required" }, 400);
+    if (name.length > 64) return c.json({ error: "name too long" }, 400);
+    try {
+      const key = `league-detail:${name.toLowerCase()}`;
+      const detail = await cachedJson(key, Math.min(30_000, cacheMs), () =>
+        buildLeagueDetail(name),
+      );
+      if (!detail) return c.json({ error: "League not found" }, 404);
+      return c.json(detail);
+    } catch (error) {
+      console.error("[leagues/detail]", error);
+      return c.json({ error: "Failed to load league detail" }, 500);
+    }
+  });
+
+  app.get("/api/leagues/tracked", async (c) => {
+    try {
+      return c.json(await listTrackedLeagues());
+    } catch (error) {
+      console.error("[leagues/tracked]", error);
+      return c.json({ error: "Failed to list tracked leagues" }, 500);
+    }
+  });
+
+  app.post("/api/leagues/tracked", botAuth, async (c) => {
+    try {
+      const body = AddTrackedLeagueBodySchema.parse(await c.req.json());
+      const result = await addTrackedLeague({
+        name: body.name,
+        addedBy: body.addedBy,
+      });
+      if (!result.ok) {
+        return c.json({ error: result.error }, result.status);
+      }
+      invalidateResponseCache();
+      return c.json({
+        ok: true,
+        leagueId: result.leagueId,
+        name: result.name,
+        pending: result.pending ?? false,
+      });
+    } catch (error) {
+      console.error("[leagues/tracked POST]", error);
+      return c.json({ error: "Failed to add tracked league" }, 500);
+    }
+  });
+
+  app.delete("/api/leagues/tracked", botAuth, async (c) => {
+    try {
+      const result = await clearTrackedLeagues();
+      invalidateResponseCache();
+      return c.json(result);
+    } catch (error) {
+      console.error("[leagues/tracked CLEAR]", error);
+      return c.json({ error: "Failed to clear tracked leagues" }, 500);
+    }
+  });
+
+  app.delete("/api/leagues/tracked/:name", botAuth, async (c) => {
+    try {
+      const result = await removeTrackedLeague(c.req.param("name") ?? "");
+      if (!result.ok) {
+        return c.json({ error: result.error }, result.status);
+      }
+      invalidateResponseCache();
+      return c.json({
+        ok: true,
+        leagueId: result.leagueId,
+        name: result.name,
+      });
+    } catch (error) {
+      console.error("[leagues/tracked DELETE]", error);
+      return c.json({ error: "Failed to remove tracked league" }, 500);
+    }
+  });
+
+  app.get("/api/leagues/settings", async (c) => {
+    try {
+      return c.json(await getLeagueSettings());
+    } catch (error) {
+      console.error("[leagues/settings]", error);
+      return c.json({ error: "Failed to load league settings" }, 500);
+    }
+  });
+
+  app.post("/api/leagues/settings/additions", botAuth, async (c) => {
+    try {
+      let body: { open?: boolean } = {};
+      const raw = await c.req.text();
+      if (raw.trim()) {
+        body = SetLeagueAdditionsBodySchema.parse(JSON.parse(raw));
+      }
+      const result = await setAdditionsOpen({ open: body.open });
+      invalidateResponseCache();
+      return c.json(result);
+    } catch (error) {
+      console.error("[leagues/settings/additions]", error);
+      return c.json({ error: "Failed to update additions lock" }, 500);
+    }
+  });
+
+  app.post("/api/leagues/settings/channel", botAuth, async (c) => {
+    try {
+      const body = SetLeagueChannelBodySchema.parse(await c.req.json());
+      const result = await setLeagueChannel(body.channelId);
+      invalidateResponseCache();
+      return c.json(result);
+    } catch (error) {
+      console.error("[leagues/settings/channel]", error);
+      return c.json({ error: "Failed to set league channel" }, 500);
+    }
+  });
+
+  app.post("/api/leagues/settings/summary-message", botAuth, async (c) => {
+    try {
+      const body = (await c.req.json()) as { messageId?: string | null };
+      await setSummaryMessageId(body.messageId ?? null);
+      return c.json({ ok: true });
+    } catch (error) {
+      console.error("[leagues/settings/summary]", error);
+      return c.json({ error: "Failed to set summary message" }, 500);
+    }
+  });
+
+  app.get("/api/leagues/discord", async (c) => {
+    try {
+      return c.json(await listDiscordLeagues());
+    } catch (error) {
+      console.error("[leagues/discord]", error);
+      return c.json({ error: "Failed to list Discord leagues" }, 500);
+    }
+  });
+
+  app.post("/api/leagues/discord", botAuth, async (c) => {
+    try {
+      const body = CreateDiscordLeagueBodySchema.parse(await c.req.json());
+      const result = await createDiscordLeague(body);
+      if (!result.ok) return c.json({ error: result.error }, result.status);
+      invalidateResponseCache();
+      return c.json({ ok: true, league: result.league });
+    } catch (error) {
+      console.error("[leagues/discord POST]", error);
+      return c.json({ error: "Failed to create Discord league" }, 500);
+    }
+  });
+
+  app.post("/api/leagues/discord/members", botAuth, async (c) => {
+    try {
+      const body = DiscordMemberBodySchema.parse(await c.req.json());
+      const result = await addDiscordMember(body);
+      if (!result.ok) return c.json({ error: result.error }, result.status);
+      invalidateResponseCache();
+      return c.json({ ok: true, league: result.league });
+    } catch (error) {
+      console.error("[leagues/discord members POST]", error);
+      return c.json({ error: "Failed to add member" }, 500);
+    }
+  });
+
+  app.delete("/api/leagues/discord/members", botAuth, async (c) => {
+    try {
+      const body = DiscordMemberBodySchema.parse(await c.req.json());
+      const result = await removeDiscordMember(body);
+      if (!result.ok) return c.json({ error: result.error }, result.status);
+      invalidateResponseCache();
+      return c.json({ ok: true, league: result.league });
+    } catch (error) {
+      console.error("[leagues/discord members DELETE]", error);
+      return c.json({ error: "Failed to remove member" }, 500);
+    }
+  });
+
+  app.delete("/api/leagues/discord/mine", botAuth, async (c) => {
+    try {
+      const ownerId = c.req.query("ownerId") ?? "";
+      const result = await disbandDiscordLeague(ownerId);
+      if (!result.ok) return c.json({ error: result.error }, result.status);
+      invalidateResponseCache();
+      return c.json({ ok: true, league: result.league });
+    } catch (error) {
+      console.error("[leagues/discord disband]", error);
+      return c.json({ error: "Failed to disband league" }, 500);
+    }
+  });
+
+  app.delete("/api/leagues/discord", botAuth, async (c) => {
+    try {
+      const result = await clearAllDiscordLeagues();
+      invalidateResponseCache();
+      return c.json({ ok: true, ...result });
+    } catch (error) {
+      console.error("[leagues/discord clearall]", error);
+      return c.json({ error: "Failed to clear Discord leagues" }, 500);
     }
   });
 

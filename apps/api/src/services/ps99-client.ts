@@ -114,6 +114,73 @@ export async function fetchBattleDetail(battleId: string): Promise<V1BattleDetai
   return fetchPs99<V1BattleDetail>(`/v1/clans/battles/${encodeURIComponent(battleId)}`);
 }
 
+export type V1LeagueListEntry = {
+  Name: string;
+  NameLower?: string;
+  ID: string;
+  Icon?: string | null;
+  Level?: number;
+  Points: number;
+  Members?: number;
+  MemberCapacity?: number;
+  ContributorCount?: number;
+  Owner?: number | null;
+  Created?: number | null;
+};
+
+export type V1LeaguesPage = {
+  leagues: V1LeagueListEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type V1LeagueDetail = {
+  Name: string;
+  NameLower?: string;
+  ID: string;
+  Icon?: string | null;
+  Level?: number;
+  Points: number;
+  MemberCapacity?: number;
+  Created?: number | null;
+  Owner?: { UserID?: number; DisplayName?: string } | number | null;
+  Members?: unknown[];
+  PointContributions?: unknown[];
+  ContributorCount?: number;
+};
+
+export async function fetchLeaguesPage(opts: {
+  page: number;
+  pageSize: number;
+  sort?: string;
+  sortOrder?: "asc" | "desc";
+  search?: string;
+}): Promise<V1LeaguesPage | null> {
+  const page = Math.max(1, Math.min(10_000, opts.page));
+  const pageSize = Math.min(100, Math.max(1, opts.pageSize));
+  const sort = opts.sort ?? "Points";
+  const sortOrder = opts.sortOrder ?? "desc";
+  const qs = new URLSearchParams({
+    page: String(page),
+    pageSize: String(pageSize),
+    sort,
+    sortOrder,
+  });
+  if (opts.search?.trim()) qs.set("search", opts.search.trim().slice(0, 64));
+  return fetchPs99<V1LeaguesPage>(`/v1/leagues?${qs.toString()}`);
+}
+
+export async function fetchLeagueDetail(
+  name: string,
+): Promise<V1LeagueDetail | null> {
+  const trimmed = name.trim().slice(0, 64);
+  if (!trimmed) return null;
+  return fetchPs99<V1LeagueDetail>(
+    `/v1/leagues/${encodeURIComponent(trimmed)}`,
+  );
+}
+
 export function extractAssetId(icon: string | null | undefined): string | null {
   if (!icon) return null;
   const match = icon.match(/(\d+)/);

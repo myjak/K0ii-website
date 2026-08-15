@@ -96,10 +96,14 @@ export function useGraphs(hours: number) {
   });
 }
 
-export function useLeagues() {
+export function useLeagues(options?: {
+  initialData?: Awaited<ReturnType<typeof fetchLeagues>> | null;
+}) {
   return useQuery({
     queryKey: queryKeys.leagues,
     queryFn: fetchLeagues,
+    initialData: options?.initialData ?? undefined,
+    refetchInterval: DEFAULT_LIVE_REFETCH_MS,
   });
 }
 

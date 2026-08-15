@@ -5,6 +5,7 @@ import {
   GlobalLeaderboardResponseSchema,
   GraphsResponseSchema,
   LeaderboardsResponseSchema,
+  LeagueDetailResponseSchema,
   LeaguesResponseSchema,
   RegistryResponseSchema,
   RosterResponseSchema,
@@ -14,6 +15,7 @@ import {
   type GlobalLeaderboardResponse,
   type GraphsResponse,
   type LeaderboardsResponse,
+  type LeagueDetailResponse,
   type LeaguesResponse,
   type RegistryResponse,
   type RosterResponse,
@@ -61,6 +63,15 @@ export async function fetchGraphs(hours = 12): Promise<GraphsResponse> {
 
 export async function fetchLeagues(): Promise<LeaguesResponse> {
   return apiFetch("/api/leagues", LeaguesResponseSchema);
+}
+
+export async function fetchLeagueDetail(
+  name: string,
+): Promise<LeagueDetailResponse> {
+  return apiFetch(
+    `/api/leagues/detail?name=${encodeURIComponent(name)}`,
+    LeagueDetailResponseSchema,
+  );
 }
 
 export async function fetchGlobalLeaderboard(params: {

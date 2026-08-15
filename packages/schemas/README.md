@@ -15,7 +15,7 @@ import { /* schemas */ } from "@k0ii/schemas";
 | `graphs.ts` | Time-series points / rank |
 | `battle.ts` | Battle archive shapes |
 | `rewards.ts` | Placement rewards |
-| `leagues.ts` | Leagues board |
+| `leagues.ts` | Leagues board + tracked mutate bodies |
 | `global.ts` | Global player index |
 | `registry.ts` | Staff registry |
 | `prize-pool.ts` | Prize pool helpers |

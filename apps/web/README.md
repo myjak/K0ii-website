@@ -33,7 +33,7 @@ Design system: [`../../designGuide.md`](../../designGuide.md).
 | `/roster` | War hub (roster, race, graphs, coverage) |
 | `/history` | Battle archive hub |
 | `/battle-rewards` | Placement payouts |
-| `/leagues` | Leagues board |
+| `/leagues` | Leagues board (tracked = ours; top 100 ladder) |
 | `/global` | Cross-clan leaderboard |
 | `/community` | Community + join + registry |
 | `/privacy`, `/terms` | Legal |

@@ -1,4 +1,6 @@
 import { loadEnv } from "../env";
+import { invalidateResponseCache } from "../lib/response-cache";
+import { pollLeagues, leaguePollIntervalMs } from "../services/poll-leagues";
 import { pollPs99 } from "../services/poll-ps99";
 import { refreshGlobalPlayerIndex } from "../services/refresh-global-index";
 
@@ -6,6 +8,7 @@ const env = loadEnv();
 
 let lastGlobalRefreshAt = 0;
 let globalRefreshRunning = false;
+let leaguePollRunning = false;
 
 async function maybeRefreshGlobal(live: boolean): Promise<void> {
   if (!live) return;
@@ -21,10 +24,8 @@ async function maybeRefreshGlobal(live: boolean): Promise<void> {
     if (result.ran) {
       lastGlobalRefreshAt = Date.now();
     } else if (result.skipped === "no-live-battle") {
-      // Battle flipped idle mid-tick — wait full interval before retry.
       lastGlobalRefreshAt = Date.now();
     }
-    // in-flight / empty-clan-list: leave lastGlobalRefreshAt so we retry soon
   } catch (error) {
     console.error("[global-index] refresh failed", error);
   } finally {
@@ -32,7 +33,24 @@ async function maybeRefreshGlobal(live: boolean): Promise<void> {
   }
 }
 
-async function loop() {
+async function leagueLoop() {
+  if (!leaguePollRunning) {
+    leaguePollRunning = true;
+    try {
+      await pollLeagues(env);
+      invalidateResponseCache();
+    } catch (error) {
+      console.error("[leagues-poll] failed", error);
+    } finally {
+      leaguePollRunning = false;
+    }
+  }
+  const nextMs = leaguePollIntervalMs(env);
+  console.log(`[leagues-poll] next tick in ${nextMs}ms`);
+  setTimeout(leagueLoop, nextMs);
+}
+
+async function warLoop() {
   let live = false;
   try {
     const result = await pollPs99(env);
@@ -41,12 +59,11 @@ async function loop() {
     console.error("[poll] failed", error);
   }
 
-  // Fire-and-forget so 500 clan fetches never block the next poll tick.
   void maybeRefreshGlobal(live);
 
   const nextMs = live ? env.POLL_INTERVAL_MS : env.POLL_INTERVAL_IDLE_MS;
   console.log(`[poll] next tick in ${nextMs}ms (live=${live})`);
-  setTimeout(loop, nextMs);
+  setTimeout(warLoop, nextMs);
 }
 
 console.log(
@@ -55,6 +72,9 @@ console.log(
 console.log(
   `[global-index] cadence=${env.GLOBAL_INDEX_REFRESH_MS}ms clans=${env.GLOBAL_INDEX_CLAN_LIMIT} concurrency=${env.GLOBAL_INDEX_FETCH_CONCURRENCY}`,
 );
+console.log(
+  `[leagues-poll] independent cadence=${leaguePollIntervalMs(env)}ms`,
+);
 
-// Kick first global build soon after start if we are live (poll sets live on first tick).
-await loop();
+void warLoop();
+void leagueLoop();
